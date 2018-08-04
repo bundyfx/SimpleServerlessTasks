@@ -61,7 +61,7 @@ const getTask = async (event, context, callback) => {
         if(get.Count === 0) {
             callback(null, generateResponse(404, "NOT FOUND"))
         }
-        geaasdawd
+
         callback(null, generateResponse(200, {
             get
         }))
