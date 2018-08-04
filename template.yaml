@@ -1,0 +1,167 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+    my-cool-app
+
+    Sample SAM Template for my-cool-app
+
+Globals:
+    Function:
+        Timeout: 5
+        Environment:
+            Variables:
+                DYNAMODB_ENDPOINT: !Ref AWS::NoValue # This is for local testing - leave as NoValue
+                AWS_REGION: !Ref AWS::NoValue
+                TABLE_NAME: !Ref DynamoDBTable
+
+Resources:
+    PutFunction:
+        Type: AWS::Serverless::Function 
+        Properties:
+            Handler: app.putTask
+            Runtime: nodejs8.10
+            AutoPublishAlias: live
+            DeploymentPreference:
+              Type: Canary10Percent5Minutes
+              Alarms:
+                - !Ref PutFunctionLatestVersionErrorMetricGreaterThanZeroAlarm
+                - !Ref PutFunctionAliasErrorMetricGreaterThanZeroAlarm
+            Policies: 
+              - !Ref DynamoDBPutAccess
+            Events:
+                APIEvent:
+                    Type: Api 
+                    Properties:
+                        Path: /tasks/{taskId}
+                        Method: put
+    GetFunction:
+        Type: AWS::Serverless::Function 
+        Properties:
+            Handler: app.getTask
+            Runtime: nodejs8.10
+            AutoPublishAlias: live
+            DeploymentPreference:
+              Type: Canary10Percent5Minutes
+              Alarms:
+                - !Ref GetFunctionAliasErrorMetricGreaterThanZeroAlarm
+                - !Ref GetFunctionLatestVersionErrorMetricGreaterThanZeroAlarm
+            Policies: 
+              - !Ref DynamoDBGetAccess
+            Events:
+                APIEvent:
+                    Type: Api
+                    Properties:
+                        Path: /tasks/{taskId}
+                        Method: get
+
+    PutFunctionAliasErrorMetricGreaterThanZeroAlarm:
+      Type: "AWS::CloudWatch::Alarm"
+      Properties:
+        AlarmDescription: Lambda Function Error > 0
+        ComparisonOperator: GreaterThanThreshold
+        Dimensions:
+          - Name: Resource
+            Value: !Sub "${PutFunction}:live"
+          - Name: FunctionName
+            Value: !Ref PutFunction
+        EvaluationPeriods: 1
+        MetricName: Errors
+        Namespace: AWS/Lambda
+        Period: 60
+        Statistic: Sum
+        Threshold: 0
+    PutFunctionLatestVersionErrorMetricGreaterThanZeroAlarm:
+      Type: "AWS::CloudWatch::Alarm"
+      Properties:
+        AlarmDescription: Lambda Function Error > 0
+        ComparisonOperator: GreaterThanThreshold
+        Dimensions:
+          - Name: Resource
+            Value: !Ref PutFunction.Version
+          - Name: FunctionName
+            Value: !Ref PutFunction
+        EvaluationPeriods: 1
+        MetricName: Errors
+        Namespace: AWS/Lambda
+        Period: 60
+        Statistic: Sum
+        Threshold: 0
+    GetFunctionAliasErrorMetricGreaterThanZeroAlarm:
+      Type: "AWS::CloudWatch::Alarm"
+      Properties:
+        AlarmDescription: Lambda Function Error > 0
+        ComparisonOperator: GreaterThanThreshold
+        Dimensions:
+          - Name: Resource
+            Value: !Sub "${GetFunction}:live"
+          - Name: FunctionName
+            Value: !Ref GetFunction
+        EvaluationPeriods: 1
+        MetricName: Errors
+        Namespace: AWS/Lambda
+        Period: 60
+        Statistic: Sum
+        Threshold: 0
+    GetFunctionLatestVersionErrorMetricGreaterThanZeroAlarm:
+      Type: "AWS::CloudWatch::Alarm"
+      Properties:
+        AlarmDescription: Lambda Function Error > 0
+        ComparisonOperator: GreaterThanThreshold
+        Dimensions:
+          - Name: Resource
+            Value: !Ref GetFunction.Version
+          - Name: FunctionName
+            Value: !Ref GetFunction
+        EvaluationPeriods: 1
+        MetricName: Errors
+        Namespace: AWS/Lambda
+        Period: 60
+        Statistic: Sum
+        Threshold: 0
+    DynamoDBTable:
+      Type: 'AWS::DynamoDB::Table'
+      Properties:
+        SSESpecification:
+          SSEEnabled: True
+        AttributeDefinitions:
+          - AttributeName: 'Id'
+            AttributeType: 'N'
+        KeySchema:
+          - AttributeName: 'Id'
+            KeyType: 'HASH'
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+
+    DynamoDBGetAccess:
+      Type: 'AWS::IAM::ManagedPolicy'
+      Properties:
+        Description: 'Dynamodb Get access'
+        Path: '/'
+        PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+            - Effect: 'Allow'
+              Action:
+              - 'dynamodb:Query*'
+              Resource:
+              - !GetAtt DynamoDBTable.Arn
+
+    DynamoDBPutAccess:
+      Type: 'AWS::IAM::ManagedPolicy'
+      Properties:
+        Description: 'Dynamodb Put access'
+        Path: '/'
+        PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+            - Effect: 'Allow'
+              Action:
+              - 'dynamodb:Put*'
+              Resource:
+              - !GetAtt DynamoDBTable.Arn
+
+Outputs:
+    Api:
+        Description: "API Gateway endpoint URL for Prod"
+        Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/"
